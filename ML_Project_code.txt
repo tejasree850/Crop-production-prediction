@@ -1,0 +1,95 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+
+df = pd.read_csv("/content/drive/MyDrive/ML_LAB/crop_production.csv")
+
+for col in ["State_Name", "District_Name", "Crop", "Season"]:
+    df[col] = df[col].astype(str).str.strip().str.title()
+
+districts = ["Krishna", "Guntur", "Kadapa", "Kurnool"]
+crops = ["Rice", "Onion", "Maize", "Groundnut"]
+
+df = df[df["State_Name"] == "Andhra Pradesh"]
+df = df[df["District_Name"].isin(districts)]
+df = df[df["Crop"].isin(crops)]
+df = df.dropna(subset=["Production", "Area", "Season"])
+df = df[df["Area"] > 0]
+
+print("Filtered Data Shape:", df.shape)
+
+le_crop = LabelEncoder()
+le_dist = LabelEncoder()
+le_season = LabelEncoder()
+
+df["Crop_Encoded"] = le_crop.fit_transform(df["Crop"])
+df["District_Encoded"] = le_dist.fit_transform(df["District_Name"])
+df["Season_Encoded"] = le_season.fit_transform(df["Season"])
+
+X = df[["Crop_Year", "Area", "Crop_Encoded", "District_Encoded", "Season_Encoded"]]
+y = df["Production"]
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+model = DecisionTreeRegressor(
+    random_state=42,
+    max_depth=6,
+    min_samples_split=10,
+    min_samples_leaf=4
+)
+
+model.fit(X_train, y_train)
+
+pred = model.predict(X_test)
+
+train_pred = model.predict(X_train)
+test_pred = pred
+
+train_r2 = r2_score(y_train, train_pred)
+test_r2 = r2_score(y_test, test_pred)
+
+train_accuracy = train_r2 * 100
+test_accuracy = test_r2 * 100
+difference = abs(train_accuracy - test_accuracy)
+
+print("\n===== TRAIN & TEST ACCURACY =====")
+print("Train Accuracy (%):", round(train_accuracy, 2))
+print("Test Accuracy (%):", round(test_accuracy, 2))
+print("Difference (%):", round(difference, 2))
+
+mae = mean_absolute_error(y_test, pred)
+mse = mean_squared_error(y_test, pred)
+rmse = np.sqrt(mse)
+mape = np.mean(np.abs((y_test - pred) / y_test)) * 100
+smape = 100 / len(y_test) * np.sum(
+    2 * np.abs(pred - y_test) / (np.abs(y_test) + np.abs(pred) + 1e-9)
+)
+
+print("\n===== MODEL PERFORMANCE =====")
+print("MAE:", round(mae, 2))
+print("RMSE:", round(rmse, 2))
+print("MAPE (% Error):", round(mape, 2))
+print("SMAPE (% Error):", round(smape, 2))
+
+print("\n===== SAMPLE PREDICTIONS =====")
+
+sample = df.sample(n=5, random_state=5)
+X_samp = sample[["Crop_Year", "Area", "Crop_Encoded", "District_Encoded", "Season_Encoded"]]
+pred_samp = model.predict(X_samp)
+
+out = sample.copy()
+out["Predicted_Production"] = pred_samp
+
+print(out[[
+    "State_Name",
+    "District_Name",
+    "Crop",
+    "Season",
+    "Crop_Year",
+    "Area",
+    "Production",
+    "Predicted_Production"
+]])
